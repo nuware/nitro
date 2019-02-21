@@ -60,10 +60,10 @@ const createSignal = () => {
 
 // Store
 
-const mapStore = parent => reducer => {
+const mapStore = parent => fn => {
   const parentChanged = createSignal()
   const store = createStore()
-  store.on(parentChanged, reducer)
+  store.on(parentChanged, (state, payload) => fn(payload))
   parent.watch(parentChanged)
   return store
 }
