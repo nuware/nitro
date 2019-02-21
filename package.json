@@ -1,6 +1,6 @@
 {
   "name": "@nuware/nitro",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Signals, Store",
   "main": "dist/nitro.cjs.js",
   "esnext": "dist/nitro.esm.js",
