@@ -62,8 +62,8 @@ const createSignal = () => {
 
 const mapStore = parent => fn => {
   const parentChanged = createSignal()
-  const store = createStore()
-  store.on(parentChanged, (state, payload) => fn(payload))
+  const store = createStore(fn(parent()))
+  store.on(parentChanged, (_, payload) => fn(payload))
   parent.watch(parentChanged)
   return store
 }
