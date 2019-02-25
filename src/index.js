@@ -109,9 +109,13 @@ const createStore = (initial) => {
 
   const stateChanged = createSignal()
 
+  const id = generateId()
+
   function store () {
     return getCurrent()
   }
+
+  store.id = () => id
 
   store.reset = signal => {
     if (hasResetUnsubscription(signal)) {
@@ -166,6 +170,7 @@ const combine = (...stores) => fn => {
   const storeChanged = createSignal()
   const store = createStore()
   store.on(storeChanged, (state, payload) => payload)
+
   each(store => {
     store.watch(() => {
       const args = map(x => x())(stores)
@@ -173,6 +178,7 @@ const combine = (...stores) => fn => {
       storeChanged(payload)
     })
   })(stores)
+
   return store
 }
 
