@@ -158,7 +158,9 @@ const createStore = (initial) => {
 
   store.watch = handler => {
     const fn = payload => handler(store(), payload)
-    return stateChanged.watch(fn)
+    const unwatch = stateChanged.watch(fn)
+    fn()
+    return unwatch
   }
 
   store.getState = getCurrent
