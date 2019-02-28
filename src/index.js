@@ -61,6 +61,10 @@ const createSignal = () => {
 // Effect
 
 const createEffect = (fn) => {
+  if (not(isFunction(fn))) {
+    throw new Error(`createEffect(fn), argument "fn" is function required`)
+  }
+
   const effect = createSignal()
   const done = createSignal()
   const fail = createSignal()
