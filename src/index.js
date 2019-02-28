@@ -58,6 +58,22 @@ const createSignal = () => {
   return signal
 }
 
+// Effect
+
+const createEffect = (fn) => {
+  const effect = createSignal()
+  const done = createSignal()
+  const fail = createSignal()
+
+  effect.watch(payload => {
+    Promise.resolve(fn(payload)).then(done).catch(fail)
+  })
+
+  effect.done = done
+  effect.fail = fail
+  return effect
+}
+
 // Store
 
 const mapStore = parent => fn => {
@@ -186,6 +202,7 @@ const combine = (...stores) => fn => {
 
 export {
   createSignal,
+  createEffect,
   createStore,
   combine
 }
