@@ -79,6 +79,7 @@ export const createSignal = () => {
 // Effect
 
 export const createEffectState = effect => {
+  isEffect(effect) || raiseError('invalid "effect" argument')
   const store = createStore(false)
   store.on(effect.exec, K(true))
   store.reset(effect.fail)
