@@ -1,212 +1,189 @@
-/* global crypto */
-
 import {
+  K,
   apply,
   compose,
-  dissoc,
-  each,
+  eq,
   equal,
   isFunction,
   map,
+  has,
   not
 } from '@nuware/functions'
 
-import {
-  Prop,
-  Get,
-  Set,
-  Over
-} from '@nuware/lenses'
-
 import Emitter from '@nuware/emitter'
+import ID from '@nuware/id'
 
-const ID_GENERATOR_ALPHABET = 'abcdef0123456789'
+const emitter = Emitter()
 
-const generateId = (size = 16) => {
-  const width = ID_GENERATOR_ALPHABET.length - 1
-  const bytes = crypto.getRandomValues(new Uint8Array(size))
-  return bytes.reduce((a, b) => {
-    return a + ID_GENERATOR_ALPHABET.charAt(b & width)
-  }, '')
+const raiseError = message => {
+  throw new Error(message)
 }
+
+const SIGNAL_CREATED = 'SIGNAL_CREATED'
+const EFFECT_CREATED = 'EFFECT_CREATED'
+const STORE_CREATED = 'STORE_CREATED'
+
+export const onSignalCreated = cb => emitter.on(SIGNAL_CREATED)(cb)
+export const onEffectCreated = cb => emitter.on(EFFECT_CREATED)(cb)
+export const onStoreCreated = cb => emitter.on(STORE_CREATED)(cb)
+
+export const isSignal = x => has('of')(x) && eq(x.of)(createSignal)
+export const isEffect = x => has('of')(x) && eq(x.of)(createEffect)
+export const isStore = x => has('of')(x) && eq(x.of)(createStore)
 
 // Signals
 
-const mapSignal = parent => fn => {
-  const signal = createSignal()
-  parent.watch(x => signal(fn(x)))
-  return signal
+const mapSignal = signal => fn => {
+  isSignal(signal) || raiseError('invalid "signal" argument')
+  isFunction(fn) || raiseError('invalid "fn" argument, function required')
+  const target = signal.of()
+  // TODO: unwatch
+  signal.watch(x => target(fn(x)))
+  return target
 }
 
-const filterSignal = parent => fn => {
-  const signal = createSignal()
-  parent.watch(x => (fn(x) && signal(x)))
-  return signal
+const filterSignal = signal => fn => {
+  isSignal(signal) || raiseError('invalid "signal" argument')
+  isFunction(fn) || raiseError('invalid "fn" argument, function required')
+  const target = signal.of()
+  // TODO: unwatch
+  signal.watch(x => (fn(x) && target(x)))
+  return target
 }
 
-const createSignal = () => {
-  const emitter = Emitter()
-  const id = generateId()
+const forwardSignalToStore = signal => (store, reduce) => {
+  isSignal(signal) || raiseError('invalid "signal" argument')
+  isStore(store) || raiseError('invalid "store" argument')
+  isFunction(reduce) || raiseError('invalid "reduce" argument, function required')
+  return store.on(signal, reduce)
+}
 
-  function signal (payload) {
-    return emitter.emit('do')(payload)
-  }
-  signal.id = () => id
-  signal.watch = handler => emitter.on('do')(handler)
+export const createSignal = () => {
+  const id = K(ID())
+  const inspect = K(`signal(${id()})`)
+
+  /** @instance */
+  const signal = payload => emitter.emit(inspect())(payload)
+  signal.id = id
+  signal.inspect = inspect
+  signal.watch = handler => emitter.on(inspect())(handler)
   signal.map = mapSignal(signal)
   signal.filter = filterSignal(signal)
+  signal.toStore = forwardSignalToStore(signal)
+  signal.of = createSignal
+
+  emitter.emit(SIGNAL_CREATED)(signal)
   return signal
 }
 
 // Effect
 
-const createEffect = (fn) => {
-  if (not(isFunction(fn))) {
-    throw new Error(`createEffect(fn), argument "fn" is function required`)
-  }
+export const createEffect = fn => {
+  isFunction(fn) || raiseError('invalid "fn" argument, function required')
 
-  const effect = createSignal()
+  const id = K(ID())
+  const inspect = K(`effect(${id()})`)
+
+  const exec = createSignal()
   const done = createSignal()
   const fail = createSignal()
 
-  effect.watch(payload => {
+  /** @instance */
+  const effect = payload => exec(payload)
+  effect.id = id
+  effect.inspect = inspect
+  effect.done = done
+  effect.fail = fail
+  effect.of = createEffect
+
+  // TODO: unwatch
+  exec.watch(payload => {
     Promise.resolve(fn(payload)).then(done).catch(fail)
   })
 
-  effect.done = done
-  effect.fail = fail
+  emitter.emit(EFFECT_CREATED)(effect)
   return effect
 }
 
 // Store
 
-const mapStore = parent => fn => {
-  const parentChanged = createSignal()
-  const store = createStore(fn(parent()))
-  store.on(parentChanged, (_, payload) => fn(payload))
-  parent.watch(parentChanged)
-  return store
+const mapStore = source => fn => {
+  isStore(source) || raiseError('invalid "store" argument')
+  isFunction(fn) || raiseError('invalid "fn" argument, function required')
+  const changed = createSignal()
+  const target = source.of(fn(source()))
+  target.on(changed, (_, payload) => fn(payload))
+  // TODO: unwatch
+  source.watch(changed)
+  return target
 }
 
-const createStore = (initial) => {
-  let state = { event: {}, reset: {} }
+export const createStore = initial => {
+  const id = K(ID())
+  const inspect = K(`store(${id()})`)
 
-  const InitialLens = Prop('initial')
-  const getInitial = () => Get(InitialLens)(state)
-  const setInitial = xx => Set(InitialLens)(xx)(state)
-  state = setInitial(initial)
+  const state = new Map()
+  const getInitialState = () => state.get('initial')
+  const setInitialState = xx => state.set('initial', xx)
+  const getCurrentState = () => state.get('current')
+  const setCurrentState = xx => state.set('current', xx)
 
-  const CurrentLens = Prop('current')
-  const getCurrent = () => Get(CurrentLens)(state)
-  const setCurrent = xx => Set(CurrentLens)(xx)(state)
-  state = setCurrent(getInitial())
+  const changed = createSignal()
 
-  const createUnsubscriptionLens = (type, signal) => compose(apply(compose), map(Prop))([type, signal.id()])
+  const updateState = value => compose(changed, getCurrentState, setCurrentState)(value)
+  const compareStates = (curr, next) => not(equal(curr)(next))
 
-  const addUnsubscription = type => signal => fn => {
-    const Lens = createUnsubscriptionLens(type, signal)
-    state = Set(Lens)(fn)(state)
-  }
-  const addResetUnsubscription = addUnsubscription('reset')
-  const addEventUnsubscription = addUnsubscription('event')
-
-  const removeUnsubscription = type => signal => {
-    const Lens = createUnsubscriptionLens(type, signal)
-    const fn = Get(Lens)(state)
-    state = Over(Prop(type))(dissoc(signal.id()))(state)
-    isFunction(fn) && fn()
-  }
-  const removeResetUnsubscription = removeUnsubscription('reset')
-  const removeEventUnsubscription = removeUnsubscription('event')
-
-  const hasUnsubscription = type => signal => {
-    const Lens = createUnsubscriptionLens(type, signal)
-    const fn = Get(Lens)(state)
-    return isFunction(fn)
-  }
-  const hasResetUnsubscription = hasUnsubscription('reset')
-  const hasEventUnsubscription = hasUnsubscription('event')
-
-  const stateChanged = createSignal()
-
-  const id = generateId()
-
-  function store () {
-    return getCurrent()
-  }
-
-  store.id = () => id
-
-  store.reset = signal => {
-    if (hasResetUnsubscription(signal)) {
-      throw new Error(`store.reset(), signal with id = ${signal.id()} already listen`)
-    }
-
-    const unsubscribe = signal.watch(() => {
-      const payload = getInitial()
-      state = setCurrent(payload)
-      stateChanged(payload)
-    })
-
-    addResetUnsubscription(signal)(unsubscribe)
-    return store
-  }
-
-  store.on = (signal, reducer) => {
-    if (hasEventUnsubscription(signal)) {
-      throw new Error(`store.on(), signal with id = ${signal.id()} already listen`)
-    }
-
-    const unsubscribe = signal.watch(payload => {
-      const curr = store()
-      const next = reducer(curr, payload)
-      if (not(equal(curr)(next))) {
-        state = setCurrent(next)
-        stateChanged(payload)
-      }
-    })
-
-    addEventUnsubscription(signal)(unsubscribe)
-    return store
-  }
-
-  store.off = signal => {
-    removeEventUnsubscription(signal)
-    removeResetUnsubscription(signal)
-    return store
-  }
-
-  store.watch = handler => {
-    const fn = payload => handler(store(), payload)
-    const unwatch = stateChanged.watch(fn)
-    fn()
-    return unwatch
-  }
-
-  store.getState = getCurrent
+  const store = () => getCurrentState()
+  store.id = id
+  store.inspect = inspect
   store.map = mapStore(store)
+  store.watch = changed.watch
+
+  store.on = (signal, reduce) => {
+    isSignal(signal) || raiseError('invalid "signal" argument')
+    isFunction(reduce) || raiseError('invalid "reduce" argument, function required')
+    const handler = payload => {
+      const curr = getCurrentState()
+      const next = reduce(curr, payload)
+      compareStates(curr, next) && updateState(next)
+    }
+    return signal.watch(handler)
+  }
+
+  store.reset = (signal) => {
+    isSignal(signal) || raiseError('invalid "signal" argument')
+    const handler = () => {
+      const curr = getCurrentState()
+      const next = getInitialState()
+      compareStates(curr, next) && updateState(next)
+    }
+    return signal.watch(handler)
+  }
+
+  store.getState = getCurrentState
+  store.of = createStore
+
+  setInitialState(initial)
+  compareStates(getCurrentState(), getInitialState()) && updateState(initial)
+
+  emitter.emit(STORE_CREATED)(store)
   return store
 }
 
-const combine = (...stores) => fn => {
-  const storeChanged = createSignal()
+export const combineStores = (...stores) => fn => {
+  isFunction(fn) || raiseError('fn argument, function required')
+  const changed = createSignal()
   const store = createStore()
-  store.on(storeChanged, (state, payload) => payload)
+  store.on(changed, (_, payload) => payload)
 
-  each(store => {
-    store.watch(() => {
+  // TODO: unwatchs
+  map(store => {
+    return store.watch(() => {
       const args = map(x => x())(stores)
       const payload = apply(fn)(args)
-      storeChanged(payload)
+      changed(payload)
     })
   })(stores)
 
   return store
-}
-
-export {
-  createSignal,
-  createEffect,
-  createStore,
-  combine
 }

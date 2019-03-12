@@ -6,14 +6,16 @@ import pkg from './package.json'
 const banner = `/**
  * Nitro - ${pkg.description}
  *
+ * @author Dmitry Dudin <dima@nuware.ru>
  * @version ${pkg.version}
  * @license MIT
- * @copyright Dmitry Dudin <dima@nuware.ru> 2018
  */`
+
+const external = ['@nuware/functions', '@nuware/emitter', '@nuware/id']
 
 export default [{
   input: 'src/index.js',
-  external: ['@nuware/functions', '@nuware/emitter', '@nuware/lenses'],
+  external,
   output: {
     file: pkg.module,
     format: 'esm',
@@ -21,7 +23,7 @@ export default [{
   }
 }, {
   input: 'src/index.js',
-  external: ['@nuware/functions', '@nuware/emitter', '@nuware/lenses'],
+  external,
   output: {
     file: pkg.main,
     format: 'cjs',
