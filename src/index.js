@@ -78,6 +78,14 @@ export const createSignal = () => {
 
 // Effect
 
+export const createEffectState = effect => {
+  const store = createStore(false)
+  store.on(effect.exec, K(true))
+  store.reset(effect.fail)
+  store.reset(effect.done)
+  return store
+}
+
 export const createEffect = fn => {
   isFunction(fn) || raiseError('invalid "fn" argument, function required')
 
@@ -92,6 +100,7 @@ export const createEffect = fn => {
   const effect = payload => exec(payload)
   effect.id = id
   effect.inspect = inspect
+  effect.exec = exec
   effect.done = done
   effect.fail = fail
   effect.of = createEffect
@@ -107,14 +116,14 @@ export const createEffect = fn => {
 
 // Store
 
-const mapStore = source => fn => {
-  isStore(source) || raiseError('invalid "store" argument')
+const mapStore = store => fn => {
+  isStore(store) || raiseError('invalid "store" argument')
   isFunction(fn) || raiseError('invalid "fn" argument, function required')
   const changed = createSignal()
-  const target = source.of(fn(source()))
+  const target = store.of(fn(store()))
   target.on(changed, (_, payload) => fn(payload))
   // TODO: unwatch
-  source.watch(changed)
+  store.watch(changed)
   return target
 }
 
@@ -130,7 +139,7 @@ export const createStore = initial => {
 
   const changed = createSignal()
 
-  const updateState = value => compose(changed, getCurrentState, setCurrentState)(value)
+  const updateState = compose(changed, getCurrentState, setCurrentState)
   const compareStates = (curr, next) => not(equal(curr)(next))
 
   const store = () => getCurrentState()
@@ -171,7 +180,7 @@ export const createStore = initial => {
 }
 
 export const combineStores = (...stores) => fn => {
-  isFunction(fn) || raiseError('fn argument, function required')
+  isFunction(fn) || raiseError('invalid "fn" argument, function required')
   const changed = createSignal()
   const store = createStore()
   store.on(changed, (_, payload) => payload)
