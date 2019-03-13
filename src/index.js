@@ -64,13 +64,13 @@ export const createSignal = () => {
 
   /** @instance */
   const signal = payload => emitter.emit(inspect())(payload)
+  signal.of = createSignal
   signal.id = id
   signal.inspect = inspect
   signal.watch = handler => emitter.on(inspect())(handler)
   signal.map = mapSignal(signal)
   signal.filter = filterSignal(signal)
   signal.toStore = forwardSignalToStore(signal)
-  signal.of = createSignal
 
   emitter.emit(SIGNAL_CREATED)(signal)
   return signal
@@ -99,12 +99,12 @@ export const createEffect = fn => {
 
   /** @instance */
   const effect = payload => exec(payload)
+  effect.of = createEffect
   effect.id = id
   effect.inspect = inspect
   effect.exec = exec
   effect.done = done
   effect.fail = fail
-  effect.of = createEffect
 
   // TODO: unwatch
   exec.watch(payload => {
@@ -144,6 +144,7 @@ export const createStore = initial => {
   const compareStates = (curr, next) => not(equal(curr)(next))
 
   const store = () => getCurrentState()
+  store.of = createStore
   store.id = id
   store.inspect = inspect
   store.map = mapStore(store)
@@ -171,7 +172,6 @@ export const createStore = initial => {
   }
 
   store.getState = getCurrentState
-  store.of = createStore
 
   setInitialState(initial)
   compareStates(getCurrentState(), getInitialState()) && updateState(initial)

@@ -24,19 +24,19 @@ or
 Browser
 
 ```javascript
-const { createSignal, createStore, combine } = window.nuware.Nitro
+const { createSignal, createStore, combineStores } = window.nuware.Nitro
 ```
 
 Node
 
 ```javascript
-const { createSignal, createStore, combine } = require('@nuware/nitro')
+const { createSignal, createStore, combineStores } = require('@nuware/nitro')
 ```
 
 or
 
 ```javascript
-import { createSignal, createStore, combine } from '@nuware/nitro'
+import { createSignal, createStore, combineStores } from '@nuware/nitro'
 ```
 
 ## Exmaple
@@ -47,14 +47,14 @@ const deleteUser = createSignal()
 const deleteAllUsers = createSignal()
 
 const users = createStore({})
-  .on(setUser, (state, payload) => {
-    const { id, data } = payload
-    return assoc(id)(data)(state)
-  })
-  .on(deleteUser, (state, id) => {
-    return dissoc(id)(state)
-  })
-  .reset(deleteAllUsers)
+users.reset(deleteAllUsers)
+users.on(setUser, (state, payload) => {
+  const { id, data } = payload
+  return assoc(id)(data)(state)
+})
+users.on(deleteUser, (state, id) => {
+  return dissoc(id)(state)
+})
 
 const usersCount = users.map((state) => {
   return keys(state).length
