@@ -147,7 +147,10 @@ export const createStore = initial => {
   store.id = id
   store.inspect = inspect
   store.map = mapStore(store)
-  store.watch = changed.watch
+  store.watch = (handler) => {
+    handler(getCurrentState())
+    return changed.watch(handler)
+  }
 
   store.on = (signal, reduce) => {
     isSignal(signal) || raiseError('invalid "signal" argument')
@@ -157,7 +160,8 @@ export const createStore = initial => {
       const next = reduce(curr, payload)
       compareStates(curr, next) && updateState(next)
     }
-    return signal.watch(handler)
+    signal.watch(handler)
+    return store
   }
 
   store.reset = (signal) => {
@@ -167,7 +171,8 @@ export const createStore = initial => {
       const next = getInitialState()
       compareStates(curr, next) && updateState(next)
     }
-    return signal.watch(handler)
+    signal.watch(handler)
+    return store
   }
 
   store.getState = getCurrentState
