@@ -6,7 +6,6 @@ import {
   equal,
   isFunction,
   map,
-  has,
   not
 } from '@nuware/functions'
 
@@ -27,9 +26,9 @@ export const onSignalCreated = cb => emitter.on(SIGNAL_CREATED)(cb)
 export const onEffectCreated = cb => emitter.on(EFFECT_CREATED)(cb)
 export const onStoreCreated = cb => emitter.on(STORE_CREATED)(cb)
 
-export const isSignal = x => has('of')(x) && eq(x.of)(createSignal)
-export const isEffect = x => has('of')(x) && eq(x.of)(createEffect)
-export const isStore = x => has('of')(x) && eq(x.of)(createStore)
+export const isSignal = x => x.of && eq(x.of)(createSignal)
+export const isEffect = x => x.of && eq(x.of)(createEffect)
+export const isStore = x => x.of && eq(x.of)(createStore)
 
 // Signals
 
