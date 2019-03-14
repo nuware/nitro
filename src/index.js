@@ -104,7 +104,7 @@ export const createEffect = fn => {
   effect.exec = exec
   effect.done = done
   effect.fail = fail
-  effect.createState = createEffectState(effect)
+  effect.state = createEffectState(effect)
 
   // TODO: unwatch
   exec.watch(payload => {
