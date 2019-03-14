@@ -77,7 +77,7 @@ export const createSignal = () => {
 
 // Effect
 
-export const createEffectState = effect => {
+const createEffectState = effect => {
   isEffect(effect) || raiseError('invalid "effect" argument')
   const store = createStore(false)
   store.on(effect.exec, K(true))
@@ -104,6 +104,7 @@ export const createEffect = fn => {
   effect.exec = exec
   effect.done = done
   effect.fail = fail
+  effect.createState = createEffectState(effect)
 
   // TODO: unwatch
   exec.watch(payload => {
